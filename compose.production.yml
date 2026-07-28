@@ -1,0 +1,87 @@
+name: mva-unified-final
+
+services:
+  database:
+    image: postgres:17-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${DATABASE_NAME:-mva}
+      POSTGRES_USER: ${DATABASE_USER:-mva}
+      POSTGRES_PASSWORD_FILE: /run/secrets/database_password
+    secrets:
+      - database_password
+    volumes:
+      - mva_postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DATABASE_USER:-mva} -d ${DATABASE_NAME:-mva}"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+    networks:
+      - data
+    security_opt:
+      - no-new-privileges:true
+
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    depends_on:
+      database:
+        condition: service_healthy
+    environment:
+      APP_ENV: ${APP_ENV:-production}
+      HOST: 0.0.0.0
+      PORT: 8787
+      DATABASE_HOST: database
+      DATABASE_PORT: 5432
+      DATABASE_NAME: ${DATABASE_NAME:-mva}
+      DATABASE_USER: ${DATABASE_USER:-mva}
+      DATABASE_PASSWORD_FILE: /run/secrets/database_password
+      DATABASE_POOL_MIN: ${DATABASE_POOL_MIN:-2}
+      DATABASE_POOL_MAX: ${DATABASE_POOL_MAX:-15}
+      COOKIE_SECURE: ${COOKIE_SECURE:-true}
+      COOKIE_DOMAIN: ${COOKIE_DOMAIN:-}
+      TRUSTED_HOSTS: ${TRUSTED_HOSTS:-localhost,127.0.0.1}
+      CORS_ORIGINS: ${CORS_ORIGINS:-}
+      SESSION_HOURS: ${SESSION_HOURS:-8}
+      AI_API_STYLE: ${AI_API_STYLE:-ollama}
+      AI_BASE_URL: ${AI_BASE_URL:-http://host.docker.internal:11434}
+      AI_MODEL: ${AI_MODEL:-gemma3:12b}
+      AI_API_KEY_FILE: /run/secrets/ai_api_key
+      AI_AUTH_HEADER: ${AI_AUTH_HEADER:-Authorization}
+      AI_AUTH_SCHEME: ${AI_AUTH_SCHEME:-Bearer}
+      AI_TIMEOUT_SECONDS: ${AI_TIMEOUT_SECONDS:-600}
+      AI_TLS_VERIFY: ${AI_TLS_VERIFY:-true}
+    secrets:
+      - database_password
+      - ai_api_key
+    ports:
+      - "${MVA_BIND_ADDRESS:-127.0.0.1}:${MVA_PORT:-8890}:8787"
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    networks:
+      - app
+      - data
+    read_only: true
+    tmpfs:
+      - /tmp:size=128m,mode=1777
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+
+volumes:
+  mva_postgres_data:
+
+networks:
+  app:
+  data:
+    internal: true
+
+secrets:
+  database_password:
+    file: ./secrets/database_password.txt
+  ai_api_key:
+    file: ./secrets/ai_api_key.txt

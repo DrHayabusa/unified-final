@@ -1,0 +1,84 @@
+name: Validate production build
+
+on:
+  push:
+    branches: ["main"]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+          cache: pip
+
+      - name: Install backend dependencies
+        run: pip install --requirement requirements.txt
+
+      - name: Compile and smoke-test backend
+        run: |
+          python -m compileall -q backend
+          python - <<'PY'
+          import os
+          from backend.auth import hash_password, verify_password
+          from backend.config import Settings
+          from backend.local_llm import LocalLLMClient
+          from backend.validation import normalize_asset_payloads
+
+          password = "Strong-CI-Validation-2026!"
+          encoded = hash_password(password)
+          assert verify_password(password, encoded)
+          assert not verify_password("incorrect", encoded)
+
+          assets = normalize_asset_payloads({
+              "assets": [{
+                  "ipAddress": "10.20.1.1",
+                  "dnsName": "host.example",
+                  "assetType": "Linux Server",
+                  "onboardingTool": "qualys",
+              }]
+          })
+          assert assets[0]["ipAddress"] == "10.20.1.1"
+
+          os.environ.update(
+              APP_ENV="development",
+              DATABASE_URL="postgresql://mva:test@127.0.0.1:5432/mva",
+              AI_API_STYLE="openai",
+              AI_BASE_URL="http://127.0.0.1:4000/v1",
+              AI_MODEL="local-model",
+              AI_API_KEY="ci-placeholder",
+          )
+          status = LocalLLMClient(Settings.from_environment()).status()
+          assert status["configured"]
+          assert status["apiStyle"] == "openai"
+          assert status["authenticationConfigured"]
+          PY
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Build React frontend
+        working-directory: frontend
+        run: |
+          npm ci
+          npm run build
+
+      - name: Validate production Compose
+        run: |
+          mkdir -p secrets
+          printf 'ci-database-placeholder\n' > secrets/database_password.txt
+          : > secrets/ai_api_key.txt
+          docker compose --env-file .env.production.example -f compose.production.yml config --quiet
