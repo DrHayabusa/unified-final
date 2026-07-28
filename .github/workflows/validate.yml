@@ -99,7 +99,7 @@ jobs:
           with TestClient(create_app()) as client:
               health = client.get("/health")
               assert health.status_code == 200
-              assert health.json()["database"] == "available"
+              assert health.json()["database"] == "mva"
 
               initial = client.get("/api/v1/auth/setup-status")
               assert initial.status_code == 200
