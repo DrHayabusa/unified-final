@@ -10,7 +10,7 @@ export function OpenShiftInsights({ insights }) {
           <p className="mini-label">OpenShift workload context</p>
           <h2 className="mt-1 text-xl font-extrabold text-white">Container fix coverage and workload concentration</h2>
           <p className="mt-2 max-w-4xl text-xs font-medium leading-5 text-slate-500">
-            Fixable and CVE Fixed In are reported as remediation evidence. They do not indicate exploit availability and do not promote a finding to P1.
+            Only supplied OpenShift fields are displayed. Because this export has no exploitability field, patch priority follows source severity: Critical P1, High P2, Medium P3, and Low P4.
           </p>
         </div>
         <span className="status-chip">11 supplied fields mapped</span>

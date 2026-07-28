@@ -18,6 +18,7 @@ export function PriorityMatrix({ compact = false }) {
       <p className="mini-label">Priority Matrix</p>
       <h2 className={`mt-1 font-black text-white ${compact ? "text-lg" : "text-xl"}`}>Exploit Available vs Severity</h2>
       {compact && <p className="mt-2 text-xs font-semibold leading-5 text-slate-500">SC <span className="text-slate-300">Exploit?</span>, IO <span className="text-slate-300">Exploit Ease</span>, or the selected scanner&apos;s equivalent signal.</p>}
+      <p className="mt-2 text-xs font-semibold leading-5 text-slate-500">If the source has no exploitability field, priority follows severity directly: Critical P1, High P2, Medium P3, Low P4.</p>
 
       <div className={`${compact ? "mt-4" : "mt-5"} overflow-hidden rounded-2xl border border-white/10`}>
         <div className="grid grid-cols-[0.9fr_1fr_1fr] bg-black/40 text-center text-[0.62rem] font-black uppercase tracking-[0.1em] text-slate-400">

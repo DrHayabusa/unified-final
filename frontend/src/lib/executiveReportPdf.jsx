@@ -289,7 +289,7 @@ function drawPriorityPage(doc, model) {
   drawPriorityMatrix(doc, 177, 39, 105, 85);
   drawNarrativeBox(doc, "Priority interpretation", [
     "P1 and P2 are included in Immediate Patch Needed.",
-    "Exploit availability must be supported by a source field. OpenShift Fixable indicates remediation availability, not exploitability.",
+    "Exploit availability must be supported by a source field. When that field is absent, OpenShift follows severity directly: Critical P1, High P2, Medium P3, Low P4.",
     "Different vulnerabilities on the same asset remain separate findings.",
   ], 177, 135, 105, 53);
 }

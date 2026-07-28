@@ -523,7 +523,11 @@ export function downloadNormalizedCsv(analysis) {
   const findings = isComparisonWorkflow(analysis) ? analysis.currentFindings : analysis.findings;
   const rows = [FINDING_COLUMNS.map(([header]) => header)];
   for (const finding of findings) {
-    rows.push(FINDING_COLUMNS.map(([, key]) => ["exploitAvailable", "fixable"].includes(key) ? (finding[key] ? "Yes" : "No") : finding[key] ?? ""));
+    rows.push(FINDING_COLUMNS.map(([, key]) => {
+      if (key === "exploitAvailable") return exploitAvailabilityLabel(finding);
+      if (key === "fixable") return finding[key] ? "Yes" : "No";
+      return finding[key] ?? "";
+    }));
   }
   const csv = rows.map((row) => row.map(csvCell).join(",")).join("\r\n");
   saveBlob(new Blob(["\ufeff", csv], { type: "text/csv;charset=utf-8" }), `MVA_${safeName(analysis.sourceLabel)}_Normalized_Findings.csv`);
@@ -1009,13 +1013,21 @@ function tableHeaderCell(cell, value) {
 }
 
 function findingCellValue(finding, key) {
-  if (key === "exploitAvailable") return finding[key] ? "Yes" : "No";
+  if (key === "exploitAvailable") return exploitAvailabilityLabel(finding);
   if (key === "fixable") return finding[key] ? "Yes" : "No";
   if (key === "sourceDisplay") return finding.sourceDisplay || (finding.sourceTools ?? []).join(" + ") || finding.sourceTool;
   const value = finding[key];
   if (value !== undefined && value !== null && value !== "") return value;
   if (key === "firstDiscovered" || key === "lastObserved") return "Not provided by source export";
   return "N/A";
+}
+
+function exploitAvailabilityLabel(finding) {
+  const sources = finding.sourceTools?.length ? finding.sourceTools : [finding.sourceTool];
+  if (finding.exploitSignalAvailable === false || (sources.length && sources.every((source) => source === "openshift"))) {
+    return "Not supplied";
+  }
+  return finding.exploitAvailable ? "Yes" : "No";
 }
 
 async function addLineChartImage(workbook, sheet, points, chartTitle, color, placement) {
