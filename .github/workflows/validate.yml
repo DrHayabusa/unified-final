@@ -11,6 +11,20 @@ permissions:
 jobs:
   validate:
     runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:17-alpine
+        env:
+          POSTGRES_DB: mva
+          POSTGRES_USER: mva
+          POSTGRES_PASSWORD: ci-database-password
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U mva -d mva"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
     steps:
       - name: Check out source
         uses: actions/checkout@v4
@@ -25,6 +39,12 @@ jobs:
         run: pip install --requirement requirements.txt
 
       - name: Compile and smoke-test backend
+        env:
+          APP_ENV: development
+          COOKIE_SECURE: "false"
+          DATABASE_URL: postgresql://mva:ci-database-password@127.0.0.1:5432/mva
+          TRUSTED_HOSTS: 127.0.0.1,localhost,testserver
+          CORS_ORIGINS: http://testserver
         run: |
           python -m compileall -q backend
           python - <<'PY'
@@ -61,6 +81,42 @@ jobs:
           assert status["configured"]
           assert status["apiStyle"] == "openai"
           assert status["authenticationConfigured"]
+          PY
+
+      - name: Validate PostgreSQL schema and authenticated API
+        env:
+          APP_ENV: development
+          COOKIE_SECURE: "false"
+          DATABASE_URL: postgresql://mva:ci-database-password@127.0.0.1:5432/mva
+          TRUSTED_HOSTS: 127.0.0.1,localhost,testserver
+          CORS_ORIGINS: http://testserver
+          FRONTEND_DIST: frontend/dist
+        run: |
+          python - <<'PY'
+          from fastapi.testclient import TestClient
+          from backend.app import create_app
+
+          with TestClient(create_app()) as client:
+              health = client.get("/health")
+              assert health.status_code == 200
+              assert health.json()["database"] == "available"
+
+              initial = client.get("/api/v1/auth/setup-status")
+              assert initial.status_code == 200
+              assert initial.json()["setupRequired"] is True
+
+              bootstrap = client.post("/api/v1/auth/bootstrap", json={
+                  "email": "admin@example.test",
+                  "fullName": "MVA CI Administrator",
+                  "password": "Strong-CI-Bootstrap-2026!",
+              })
+              assert bootstrap.status_code == 201, bootstrap.text
+              assert bootstrap.json()["user"]["globalRole"] == "system_admin"
+              assert "mva_session" in bootstrap.cookies
+
+              final = client.get("/api/v1/auth/setup-status")
+              assert final.status_code == 200
+              assert final.json()["setupRequired"] is False
           PY
 
       - name: Set up Node.js
